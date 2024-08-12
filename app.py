@@ -1,139 +1,135 @@
-#!/home/nps/tank/bin/python3
+#!/usr/bin//python3
 import threading
 import time
 import qwiic_icm20948
 import busio
 import board
 import numpy as np
-from scipy.signal import butter, lfilter
-from dataclasses import dataclass, field
 from filterpy.kalman import KalmanFilter
 
-def butter_lowpass(cutoff, fs, order=5):
-    nyquist = 0.5 * fs
-    normal_cutoff = cutoff / nyquist
-    b, a = butter(order, normal_cutoff, btype='low', analog=True)
-    return b, a
+ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
+GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
+MAG_SENSITIVITY_4900UT = 4900.0 / 8192  # Sensitivity factor for ±4900uT
 
-def butter_highpass(cutoff, fs, order=5):
-    nyquist = 0.5 * fs
-    normal_cutoff = cutoff / nyquist
-    b, a = butter(order, normal_cutoff, btype='high', analog=True)
-    return b, a
+i2c_bus  = busio.I2C(board.SCL, board.SDA)
+i2c_lock = threading.Lock()
+imu_lock = threading.Lock()
+kf_lock  = threading.Lock()
 
-tank_filter = KalmanFilter(dim_x=2, dim_z=1)
-print('x = ', tank_filter.x.T)
-print('R = ', tank_filter.R)
-print('Q = \n', tank_filter.Q)
+kf = KalmanFilter(dim_x=9, dim_z=9)
+with kf_lock:
+    kf.x = np.zeros(9)  # Initial state
+    kf.P = np.eye(9)  # Initial state covariance
+    kf.F = np.eye(9)  # State transition matrix
+    kf.H = np.eye(9)  # Measurement function
+    kf.Q = np.eye(9)  # Process noise covariance
+    kf.R = np.eye(9)  # Measurement noise covariance
+    z = np.array([0] * 9)  # Measurement vector
+    kf.predict()
+    kf.update(z)
 
-# Singleton 
+
+# Singleton
 class IMU():
-    def __init__(self, i2c, lock):
-        self.i2c_bus = i2c
-        self.i2c_lock = lock
-        self.imu_lock = threading.Lock()
+    def __init__(self):
+        global kf
+        global imu_lock
+        global i2c_lock
+        global i2c_bus
+
         self.polling = 50
         self.running = False
-        self.thread = None
-        self.lpf = butter_lowpass(10.0, self.polling, order = 5)
-        self.hpf = butter_highpass(0.1, self.polling, order = 5)
+        self.threads = []
 
-        # Initialize data buffers (e.g., length of 20 samples)
-        self.index = 0
-        self.buffer_length = 20
+        self.accel = [0] * 3
+        self.gyro = [0] * 3
+        self.mag = [0] * 3
 
-        self.accel_x_buffer = np.zeros(self.buffer_length)
-        self.accel_y_buffer = np.zeros(self.buffer_length)
-        self.accel_z_buffer = np.zeros(self.buffer_length)
-        self.gyro_x_buffer  = np.zeros(self.buffer_length)
-        self.gyro_y_buffer  = np.zeros(self.buffer_length)
-        self.gyro_z_buffer  = np.zeros(self.buffer_length)
-        self.mag_x_buffer   = np.zeros(self.buffer_length)
-        self.mag_y_buffer   = np.zeros(self.buffer_length)
-        self.mag_z_buffer   = np.zeros(self.buffer_length)
-
-        with self.i2c_lock:
-            self.imu = qwiic_icm20948.QwiicIcm20948()
-            self.imu.setFullScaleRangeAccel(16)
-            if not self.imu.connected:
+        with i2c_lock and imu_lock:
+            self.icm20948 = qwiic_icm20948.QwiicIcm20948()
+            self.icm20948.begin()
+            self.icm20948.setFullScaleRangeAccel(qwiic_icm20948.gpm16)
+            self.icm20948.setFullScaleRangeGyro(qwiic_icm20948.dps250)
+            self.icm20948.setDLPFcfgAccel(qwiic_icm20948.acc_d11bw5_n17bw)
+            self.icm20948.setDLPFcfgGyro(qwiic_icm20948.gyr_d11bw6_n17bw8)
+            if not self.icm20948.connected:
                 raise Exception("The Qwiic ICM20948 device isn't connected to the system. Please check your connection")
-            self.imu.begin()
+
+    def __del__(self):
+        self.stop()
 
     def read_data(self):
-        with self.i2c_lock:
-            if self.imu.dataReady():
-                self.imu.getAgmt()
-                with self.imu_lock:
-                    i = self.index
-                    self.accel_x_buffer[i] =  self.imu.axRaw
-                    self.accel_y_buffer[i] =  self.imu.ayRaw
-                    self.accel_z_buffer[i] =  self.imu.azRaw
-                    self.gyro_x_buffer [i] =  self.imu.gxRaw
-                    self.gyro_y_buffer [i] =  self.imu.gyRaw
-                    self.gyro_z_buffer [i] =  self.imu.gzRaw
-                    self.mag_x_buffer  [i] =  self.imu.mxRaw
-                    self.mag_y_buffer  [i] =  self.imu.myRaw
-                    self.mag_z_buffer  [i] =  self.imu.mzRaw
-                    self.index = (i + 1) % self.buffer_length
+        global i2c_lock
+        global imu_lock
+        minval = 16.0
+        maxval = 0.0
 
-    def run(self):
-        if not self.running:
-            self.running = True
-            self.thread = threading.Thread(target=self.read_data())
-            self.thread.start()
-            self.print_thread = threading.Thread(target=self.print_poller())
-            self.print_thread.start()
+        ready = False
+        with i2c_lock:
+            ready = self.icm20948.dataReady()
+            if ready:
+                self.icm20948.getAgmt()
+        if ready:
+            with imu_lock:
+                self.accel = np.array([self.icm20948.axRaw, self.icm20948.ayRaw, self.icm20948.azRaw]) * ACCEL_SENSITIVITY_16G
+                self.gyro = np.array([self.icm20948.gxRaw, self.icm20948.gyRaw, self.icm20948.gzRaw]) * GYRO_SENSITIVITY_250DPS
+                rawmag = np.array([self.icm20948.mxRaw, self.icm20948.myRaw, self.icm20948.mzRaw])
+                self.mag = np.array(rawmag) / np.linalg.norm(rawmag) # Normalize magnetometer data
+                minval = min(minval, np.linalg.norm(self.accel))
+                maxval = max(maxval, np.linalg.norm(self.accel))
+                if maxval > 4.0 or minval < 0.1:
+                    self.print_data()
+
 
     def stop(self):
         if self.running:
             self.running = False
-            if self.thread:
-                self.thread.join()
-
-    def _poll(self):
-        while self.running:
-            self.read_data()
-            time.sleep(1.0/self.polling)
-
-    def _poll_print(self):
-        while self.running:
-            self.print_data()
-            time.sleep(1.0)
+            while self.threads:
+                self.threads.pop().join()
 
     def print_data(self):
-        
-                    self.accel_x_buffer[i] =  self.imu.axRaw
-                    self.accel_y_buffer[i] =  self.imu.ayRaw
-                    self.accel_z_buffer[i] =  self.imu.azRaw
-                    self.gyro_x_buffer [i] =  self.imu.gxRaw
-                    self.gyro_y_buffer [i] =  self.imu.gyRaw
-                    self.gyro_z_buffer [i] =  self.imu.gzRaw
-                    self.mag_x_buffer  [i] =  self.imu.mxRaw
-                    self.mag_y_buffer  [i] =  self.imu.myRaw
-                    self.mag_z_buffer  [i] =  self.imu.mzRaw
+        print(' '.join(['{: .4f}'.format(value) for value in self.accel])  \
+            +  ':(%.4f)' % np.linalg.norm(self.accel) \
+            + ' '.join(['{: .4f}'.format(value) for value in self.gyro]) + '   ' \
+            + ' '.join(['{: .4f}'.format(value) for value in self.mag]))
 
-        print(
-            '{: 06d}'.format(agm.acc[0]),
-             '\t', '{: 06d}'.format(agm.acc[1]),
-             '\t', '{: 06d}'.format(agm.acc[2]),
-             '\t', '{: 06d}'.format(agm.gyr[0]),
-             '\t', '{: 06d}'.format(agm.gyr[1]),
-             '\t', '{: 06d}'.format(agm.gyr[2]),
-             '\t', '{: 06d}'.format(agm.mag[0]),
-             '\t', '{: 06d}'.format(agm.mag[1]),
-             '\t', '{: 06d}'.format(agm.mag[2])
-        )
-
-
-class App():
-    def __init__(self):
-        self.i2c_lock = threading.Lock()
-        self.i2c_bus = busio.I2C(board.SCL, board.SDA)
-        self.imu = IMU(App.i2c_bus, App.i2c_lock)
+    def _poll_data(self):
+        global kf
+        last_time = time.time()
+        while self.running:
+            with kf_lock:
+                self.read_data()
+                current_time = time.time()
+                delta_t = current_time - last_time
+                last_time = current_time
+                kf.F = [[1, delta_t, 0, 0, 0, 0, 0.5 * delta_t ** 2, 0, 0],
+                        [0, 1, 0, 0, 0, 0, delta_t, 0, 0],
+                        [0, 0, 1, delta_t, 0, 0, 0, 0.5 * delta_t ** 2, 0],
+                        [0, 0, 0, 1, 0, 0, 0, delta_t, 0],
+                        [0, 0, 0, 0, 1, delta_t, 0, 0, 0.5 * delta_t ** 2],
+                        [0, 0, 0, 0, 0, 1, 0, 0, delta_t],
+                        [0, 0, 0, 0, 0, 0, 1, delta_t, 0],
+                        [0, 0, 0, 0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 0, 0, 0, 0, 0, 1]]
+                with imu_lock:
+                    z = np.concatenate([self.accel, self.gyro, self.mag])
+                    #print(z)
+                    #kf.predict()
+                    #kf.update(z)
+            time.sleep(1.0/self.polling)
 
     def run(self):
-        while True:
-            self.imu.print_data()
+        if not self.running:
+            self.running = True
+            self.threads.append(threading.Thread(target=self._poll_data))
+            self.threads[-1].start()
 
-app = App()
-app.run()
+imu = IMU()
+imu.run()
+running = True
+while running:
+    # do robot stuff here
+    with kf_lock:
+        pass
+        #print(kf.x)
+    time.sleep(2.0)
