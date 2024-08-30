@@ -1,32 +1,45 @@
 #!/usr/bin//python3
+import zmq
+from motor_driver import MotorDriver
 import threading
 import time
-import qwiic_icm20948
-import busio
-import board
+#import qwiic_icm20948
+import smbus2 as smbus
 import numpy as np
-from filterpy.kalman import KalmanFilter
+#from PID_Py.PID import PID
+#from filterpy.kalman import KalmanFilter
+
+# Server (e.g., on the robot)
+context = zmq.Context()
+socket = context.socket(zmq.REP)
+socket.bind("tcp://*:5555")
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
 MAG_SENSITIVITY_4900UT = 4900.0 / 8192  # Sensitivity factor for ±4900uT
 
-i2c_bus  = busio.I2C(board.SCL, board.SDA)
+i2c_bus = smbus.SMBus(1)
 i2c_lock = threading.Lock()
 imu_lock = threading.Lock()
 kf_lock  = threading.Lock()
 
-kf = KalmanFilter(dim_x=9, dim_z=9)
-with kf_lock:
-    kf.x = np.zeros(9)  # Initial state
-    kf.P = np.eye(9)  # Initial state covariance
-    kf.F = np.eye(9)  # State transition matrix
-    kf.H = np.eye(9)  # Measurement function
-    kf.Q = np.eye(9)  # Process noise covariance
-    kf.R = np.eye(9)  # Measurement noise covariance
-    z = np.array([0] * 9)  # Measurement vector
-    kf.predict()
-    kf.update(z)
+# Initialization
+#pid_left  = PID(kp = 2.0, ki = 5.0, kd = 0.0, cycleTime = 0.01)
+#pid_right = PID(kp = 2.0, ki = 5.0, kd = 0.0, cycleTime = 0.01)
+#pid_left.setPoint = 0
+#pid_right.setPoint = 0
+
+#kf = KalmanFilter(dim_x=9, dim_z=9)
+# with kf_lock:
+#     kf.x = np.zeros(9)  # Initial state
+#     kf.P = np.eye(9)  # Initial state covariance
+#     kf.F = np.eye(9)  # State transition matrix
+#     kf.H = np.eye(9)  # Measurement function
+#     kf.Q = np.eye(9)  # Process noise covariance
+#     kf.R = np.eye(9)  # Measurement noise covariance
+#     z = np.array([0] * 9)  # Measurement vector
+#     kf.predict()
+#     kf.update(z)
 
 
 # Singleton
@@ -85,6 +98,7 @@ class IMU():
         if self.running:
             self.running = False
             while self.threads:
+            
                 self.threads.pop().join()
 
     def print_data(self):
@@ -124,12 +138,42 @@ class IMU():
             self.threads.append(threading.Thread(target=self._poll_data))
             self.threads[-1].start()
 
-imu = IMU()
-imu.run()
+#imu = IMU()
+#imu.run()
+# pid = PID(1.0, 0.1, 0.05, setpoint=0)
+# pid.sample_time = 0.01
+# pid.output_limits = (-1, 1)
+# pid.tunings = (1.0, 0.1, 0.05)
+# pid.setpoint = 0
+# pid.auto_mode = True
+# pid.proportional_on_measurement = False
+
+# PID loop should probably be on a timer
+    # current_value1 = measure_process_1()
+    # current_value2 = measure_process_2()
+
+    # # Update both PID controllers
+    # pid1.update(current_value1)
+    # pid2.update(current_value2)
+
+    # # Retrieve the control outputs
+    # control_output1 = pid1.output
+    # control_output2 = pid2.output
+
+    # # Apply the control outputs to your system
+    # apply_control_1(control_output1)
+    # apply_control_2(control_output2)
+
+motor = MotorDriver(i2c_lock, i2c_bus)
+motor.set_tracks([0, 0])
+
 running = True
 while running:
-    # do robot stuff here
-    with kf_lock:
-        pass
-        #print(kf.x)
-    time.sleep(2.0)
+    message = socket.recv_string()
+    socket.send_string("Ack")
+    event,data = message.split(":")
+    if event == "drive":
+        motor_left, motor_right = [int(x) for x in data.split(",")]
+        motor.set_tracks([motor_left, motor_right])
+
+    time.sleep(0.1)
