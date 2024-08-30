@@ -1,4 +1,5 @@
 #!/usr/bin//python3
+import subprocess
 import zmq
 from motor_driver import MotorDriver
 import threading
@@ -13,6 +14,21 @@ import numpy as np
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
+
+stream_cmd = "libcamera-vid \
+    -t 0 \
+    --codec mjpeg \
+    --buffer-count 2 \
+    --nopreview \
+    --width 1296 \
+    --height 972 \
+    --framerate 15 \
+    --inline \
+    --vflip \
+    --hflip \
+    --listen \
+    -o tcp://0.0.0.0:8554"
+video_thread = subprocess.popen(stream_cmd.split(' '))
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
@@ -98,7 +114,7 @@ class IMU():
         if self.running:
             self.running = False
             while self.threads:
-            
+
                 self.threads.pop().join()
 
     def print_data(self):
@@ -177,3 +193,7 @@ while running:
         motor.set_tracks([motor_left, motor_right])
 
     time.sleep(0.1)
+
+motor.stop()
+video_thread.terminate()
+video_thread.join()
