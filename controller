@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PyQt5.QtGui import QImage, QPixmap
+import numpy as np
+import time
+import sys
+import zmq
+from SlewRateLimiter import SlewRateLimiter
+
+running = True
+
+# Client (e.g., on your laptop)
+context = zmq.Context()
+socket = context.socket(zmq.REQ)
+socket.connect("tcp://tank:5555")
+socket.setsockopt(zmq.RCVTIMEO, 1000)
+
+def send_message(message):
+    socket.send_string(message)
+    try:
+        reply = socket.recv_string()
+    except zmq.error.Again:
+        print("Timeout")
+
+target = np.array([0, 0])
+speed = np.array([0, 0])
+current_time = time.time()
+rate_limiter = SlewRateLimiter(100)
+controls = [Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space]
+keymap = {Qt.Key.Key_Up : 'up',
+          Qt.Key.Key_Down : 'down',
+          Qt.Key.Key_Left : 'left',
+          Qt.Key.Key_Right : 'right',
+          Qt.Key.Key_Space : 'space'}
+
+class CameraControlWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        # Set up the camera feed URL (MJPEG stream URL)
+        self.camera_feed_url = "http://tank:8554/mjpeg"
+
+        # Set up the network manager for the camera feed
+        self.network_manager = QNetworkAccessManager()
+        self.network_manager.finished.connect(self.handle_response)
+
+        # Set up the UI
+        self.label = QLabel(self)
+        self.setCentralWidget(self.label)
+        self.setWindowTitle("Remote Camera Feed with Keyboard Control")
+        self.setGeometry(100, 100, 800, 600)
+
+        # Control variables
+        self.speed = np.array([0, 0])
+        self.target = np.array([0, 0])
+        self.acceleration = 50  # Example acceleration value
+
+        # Timer for control loop
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_control_loop)
+        self.timer.start(200)  # Update every 20 ms
+
+        # Buffer for MJPEG
+        #self.buffer = QByteArray()
+        #self.image = QImage()
+
+        # Initialize time
+        self.current_time = time.time()
+
+    def keyPressEvent(self, event):
+        # Remove after debug
+        if event.key() == Qt.Key.Key_Q:
+            sys.exit(0)
+
+        if event.key() in controls and not event.isAutoRepeat():
+            rate_limiter.handle_inputs('pressed', keymap[event.key()])
+        
+    def keyReleaseEvent(self, event):
+        if event.key() in controls and not event.isAutoRepeat():
+            rate_limiter.handle_inputs('released', keymap[event.key()])
+        
+    def update_control_loop(self):
+        pass
+        #print(f"Speed: {self.speed[0]}, {self.speed[1]}")
+        #print(f"Target: {self.target[0]}, {self.target[1]}")
+        # Example: send_message(f"drive:{int(self.speed[0])},{int(self.speed[1])}")
+
+    def fetch_frame(self):
+        pass
+
+    def handle_response(self, reply):
+        pass
+
+    def update_image(self, jpg_data):
+        pass
+        # self.image = QImage.fromData(jpg_data)
+        # if not self.image.isNull():
+        #     self.label.setPixmap(QPixmap.fromImage(self.image))
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = CameraControlWindow()
+    window.show()
+    sys.exit(app.exec_())
