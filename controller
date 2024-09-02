@@ -24,10 +24,9 @@ def send_message(message):
     except zmq.error.Again:
         print("Timeout")
 
-target = np.array([0, 0])
-speed = np.array([0, 0])
-current_time = time.time()
-rate_limiter = SlewRateLimiter(100)
+rate_limiter = SlewRateLimiter()
+drate_limit = 20
+
 controls = [Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space]
 keymap = {Qt.Key.Key_Up : 'up',
           Qt.Key.Key_Down : 'down',
@@ -54,7 +53,6 @@ class CameraControlWindow(QMainWindow):
 
         # Control variables
         self.speed = np.array([0, 0])
-        self.target = np.array([0, 0])
         self.acceleration = 50  # Example acceleration value
 
         # Timer for control loop
@@ -67,7 +65,7 @@ class CameraControlWindow(QMainWindow):
         #self.image = QImage()
 
         # Initialize time
-        self.current_time = time.time()
+        self.previous_time = time.time()
 
     def keyPressEvent(self, event):
         # Remove after debug
@@ -80,13 +78,26 @@ class CameraControlWindow(QMainWindow):
     def keyReleaseEvent(self, event):
         if event.key() in controls and not event.isAutoRepeat():
             rate_limiter.handle_inputs('released', keymap[event.key()])
-        
-    def update_control_loop(self):
-        pass
-        #print(f"Speed: {self.speed[0]}, {self.speed[1]}")
-        #print(f"Target: {self.target[0]}, {self.target[1]}")
-        # Example: send_message(f"drive:{int(self.speed[0])},{int(self.speed[1])}")
 
+       
+    def update_control_loop(self):
+        now = time.time()
+        delta_time = now - self.previous_time
+        self.previous_time = now
+
+        # Calculate the desired change in speed
+        delta = rate_limiter.target_speed() - self.speed
+
+        # Calculate the change in speed allowed by the rate limit
+        allowed_delta = np.clip(delta, -drate_limit * delta_time, drate_limit * delta_time)
+
+        # Update speed by applying the allowed change
+        self.speed += allowed_delta.astype(int)
+
+        print(f"Updated Speed: {self.speed[0]}, {self.speed[1]}")
+        print(f"Target Speed: {rate_limiter.target_speed()[0]}, {rate_limiter.target_speed()[1]}")
+        
+             
     def fetch_frame(self):
         pass
 
