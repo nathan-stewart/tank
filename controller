@@ -79,24 +79,20 @@ class VideoThread(QThread):
 
     def run(self):
         while self.running:
-            ret, frame = self.cap.read()
-
-            # Clear buffer by reading frames until the most recent one
-            while self.cap.isOpened():
+            if self.cap.isOpened():
                 ret, frame = self.cap.read()
-                if not ret:
-                    break
-                # Continue reading frames until we reach the latest frame
-                self.last_frame = frame
-
-            if ret:
-                flipped_frame = cv2.flip(self.last_frame, 1)
-                frame_rgb = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
-                h, w, ch = frame_rgb.shape
-                bytes_per_line = ch * w
-                qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                self.update_frame_signal.emit(qt_image)
-            QThread.msleep(33)  # Delay to match the incoming frame rate
+                if ret:
+                    flipped_frame = cv2.flip(frame, -1)
+                    frame_rgb = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
+                    h, w, ch = frame_rgb.shape
+                    bytes_per_line = ch * w
+                    qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                    self.update_frame_signal.emit(qt_image)
+                else:
+                    print("Failed to read frame")
+            else:
+                print("Failed to open camera")
+            QThread.msleep(66)  # approximately 15fps
 
     def stop(self):
         self.running = False
