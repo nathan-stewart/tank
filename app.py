@@ -10,10 +10,21 @@ import numpy as np
 #from PID_Py.PID import PID
 #from filterpy.kalman import KalmanFilter
 
+import subprocess
+import atexit
+
 # Server (e.g., on the robot)
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
+
+
+# start/stop camera with app
+subprocess.call('/usr/bin/systemctl start camera'.split())
+def stop_mediamtx():
+    subprocess.call('/usr/bin/systemctl start camera'.split())
+atexit.register(stop_mediamtx)
+
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
