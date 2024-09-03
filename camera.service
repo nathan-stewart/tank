@@ -3,7 +3,7 @@ Description=Camera Service
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/mediamtx
+ExecStart=/home/tank/camera.py
 Restart=on-failure
 User=tank
 WorkingDirectory=/home/tank/
