@@ -35,38 +35,6 @@ keymap = {Qt.Key.Key_Space : 1,
           Qt.Key.Key_Up    : 8,
           Qt.Key.Key_Down  : 16 }
 
-class CameraControlWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-
-        # Set up the network manager for the camera feed
-        self.network_manager = QNetworkAccessManager()
-        self.network_manager.finished.connect(self.handle_response)
-
-        # Set up the UI
-        self.label = QLabel(self)
-        self.setCentralWidget(self.label)
-        self.setWindowTitle("Remote Camera Feed with Keyboard Control")
-        self.setGeometry(100, 100, 800, 600)
-
-    def init_ui(self):
-        self.setWindowTitle("RTSP Stream Viewer")
-        self.setGeometry(100, 100, 800, 600)
-
-        self.image_label = QLabel(self)
-        self.image_label.resize(800, 600)
-
-        central_widget = QWidget()
-        layout = QVBoxLayout()
-        layout.addWidget(self.image_label)
-        central_widget.setLayout(layout)
-
-        self.setCentralWidget(central_widget)
-
-    def closeEvent(self, event):
-        self.cap.release()
-        event.accept()
-
 class VideoThread(QThread):
     update_frame_signal = pyqtSignal(QImage)
 
@@ -82,8 +50,7 @@ class VideoThread(QThread):
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if ret:
-                    flipped_frame = cv2.flip(frame, -1)
-                    frame_rgb = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     h, w, ch = frame_rgb.shape
                     bytes_per_line = ch * w
                     qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -187,13 +154,17 @@ class CameraControlWindow(QMainWindow):
             send_message(command)
         self.lastcommand = command
 
-
     def init_ui(self):
-        self.setWindowTitle("RTSP Stream Viewer")
-        self.setGeometry(100, 100, 800, 600)
+        # Get screen resolution
+        screen = QApplication.primaryScreen()
+        screen_rect = screen.availableGeometry()
+
+        self.setWindowTitle("Front Camera")
+        self.showFullScreen()  # Set the window to fullscreen
 
         self.image_label = QLabel(self)
-        self.image_label.resize(800, 600)
+        self.image_label.setGeometry(0, 0, screen_rect.width(), screen_rect.height())
+        self.image_label.setAlignment(Qt.AlignCenter)
 
         central_widget = QWidget()
         layout = QVBoxLayout()
@@ -210,7 +181,7 @@ class CameraControlWindow(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
-    rtsp_url = "rtsp://tank:8554/front"  # Replace with your RTSP stream URL
+    rtsp_url = "rtsp://tank:8554/front"
     app = QApplication(sys.argv)
     window = CameraControlWindow(rtsp_url)
     window.show()
