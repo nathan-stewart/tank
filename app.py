@@ -1,30 +1,26 @@
 #!/usr/bin//python3
-import subprocess
 import zmq
-from motor_driver import MotorDriver
 import threading
 import time
+import subprocess
+import atexit
+from motor_driver import MotorDriver
 #import qwiic_icm20948
 import smbus2 as smbus
 import numpy as np
 #from PID_Py.PID import PID
 #from filterpy.kalman import KalmanFilter
 
-import subprocess
-import atexit
-
 # Server (e.g., on the robot)
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
-
 
 # start/stop camera with app
 subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
 def stop_mediamtx():
     subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
 atexit.register(stop_mediamtx)
-
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
@@ -187,7 +183,5 @@ while running:
     if event == "drive":
         motor_left, motor_right = [int(x) for x in data.split(",")]
         motor.set_tracks([motor_left, motor_right])
-
-    time.sleep(0.1)
 
 motor.stop()
