@@ -20,9 +20,9 @@ socket.bind("tcp://*:5555")
 
 
 # start/stop camera with app
-subprocess.call('/usr/bin/systemctl start camera'.split())
+subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
 def stop_mediamtx():
-    subprocess.call('/usr/bin/systemctl start camera'.split())
+    subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
 atexit.register(stop_mediamtx)
 
 
