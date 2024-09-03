@@ -44,7 +44,7 @@ class MotorDriver:
     def set_tracks(self, tracks):
         with self.lock:
             state = self.bus.read_i2c_block_data(MC_I2C_ADDR, MOTOR_FIXED_SPEED_ADDR, 4)
-            self.bus.write_i2c_block_data(MC_I2C_ADDR, MOTOR_FIXED_SPEED_ADDR, [-tracks[0], -tracks[1], state[2], state[3]])
+            self.bus.write_i2c_block_data(MC_I2C_ADDR, MOTOR_FIXED_SPEED_ADDR, [tracks[0], tracks[1], state[2], state[3]])
 
     def set_turret(self, turret):
         with self.lock:
