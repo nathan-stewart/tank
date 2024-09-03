@@ -39,9 +39,6 @@ class CameraControlWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Set up the camera feed URL (MJPEG stream URL)
-        self.camera_feed_url = "http://localhost:8554/front"
-
         # Set up the network manager for the camera feed
         self.network_manager = QNetworkAccessManager()
         self.network_manager.finished.connect(self.handle_response)
@@ -225,7 +222,7 @@ class CameraControlWindow(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
-    rtsp_url = "rtsp://localhost:8554/front"  # Replace with your RTSP stream URL
+    rtsp_url = "rtsp://tank:8554/front"  # Replace with your RTSP stream URL
 
     app = QApplication(sys.argv)
     window = CameraControlWindow(rtsp_url)
