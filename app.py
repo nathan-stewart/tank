@@ -15,21 +15,6 @@ context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
 
-stream_cmd = "libcamera-vid \
-    -t 0 \
-    --codec mjpeg \
-    --buffer-count 2 \
-    --nopreview \
-    --width 1296 \
-    --height 972 \
-    --framerate 15 \
-    --inline \
-    --vflip \
-    --hflip \
-    --listen \
-    -o tcp://0.0.0.0:8554"
-video_thread = subprocess.popen(stream_cmd.split(' '))
-
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
 MAG_SENSITIVITY_4900UT = 4900.0 / 8192  # Sensitivity factor for ±4900uT
@@ -195,5 +180,3 @@ while running:
     time.sleep(0.1)
 
 motor.stop()
-video_thread.terminate()
-video_thread.join()
