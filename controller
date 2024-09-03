@@ -134,6 +134,7 @@ class CameraControlWindow(QMainWindow):
         self.speed = np.array([0.0, 0.0])
         self.acceleration = 50  # Example acceleration value
         self.keystate = 0
+        self.lastcommand = None
 
         # Initialize time
         self.previous_time = time.perf_counter()
@@ -199,6 +200,11 @@ class CameraControlWindow(QMainWindow):
 
         # Update speed by applying the allowed change        
         self.speed += allowed_delta
+        command = 'drive:' + ','.join(np.round(self.speed).astype(int).astype(str))
+        if self.lastcommand != command:
+            send_message(command)
+        self.lastcommand = command        
+        
 
     def init_ui(self):
         self.setWindowTitle("RTSP Stream Viewer")
