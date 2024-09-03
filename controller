@@ -13,7 +13,7 @@ import zmq
 
 running = True
 throttle_prints = 25
-rate_limit = 50.0
+rate_limit = 20.0
 
 # Client (e.g., on your laptop)
 context = zmq.Context()
@@ -49,20 +49,6 @@ class CameraControlWindow(QMainWindow):
         self.setWindowTitle("Remote Camera Feed with Keyboard Control")
         self.setGeometry(100, 100, 800, 600)
 
-        # Control variables
-             
-    def fetch_frame(self):
-        pass
-
-    def handle_response(self, reply):
-        pass
-
-    def update_image(self, jpg_data):
-        pass
-        # self.image = QImage.fromData(jpg_data)
-        # if not self.image.isNull():
-        #     self.label.setPixmap(QPixmap.fromImage(self.image))
-
     def init_ui(self):
         self.setWindowTitle("RTSP Stream Viewer")
         self.setGeometry(100, 100, 800, 600)
@@ -77,15 +63,6 @@ class CameraControlWindow(QMainWindow):
 
         self.setCentralWidget(central_widget)
 
-    def update_frame(self):
-        ret, frame = self.cap.read()
-        if ret:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = frame_rgb.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            self.image_label.setPixmap(QPixmap.fromImage(qt_image))
-
     def closeEvent(self, event):
         self.cap.release()
         event.accept()
@@ -97,18 +74,29 @@ class VideoThread(QThread):
         super().__init__()
         self.rtsp_url = rtsp_url
         self.cap = cv2.VideoCapture(rtsp_url)
+        #self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.running = True
 
     def run(self):
         while self.running:
             ret, frame = self.cap.read()
+
+            # Clear buffer by reading frames until the most recent one
+            while self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
+                # Continue reading frames until we reach the latest frame
+                self.last_frame = frame
+
             if ret:
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                flipped_frame = cv2.flip(self.last_frame, 1)
+                frame_rgb = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = frame_rgb.shape
                 bytes_per_line = ch * w
                 qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
                 self.update_frame_signal.emit(qt_image)
-            QThread.msleep(66)  # Delay to match the incoming frame rate
+            QThread.msleep(33)  # Delay to match the incoming frame rate
 
     def stop(self):
         self.running = False
@@ -146,7 +134,7 @@ class CameraControlWindow(QMainWindow):
 
         if event.key() in controls and not event.isAutoRepeat():
             self.handle_inputs('pressed', event.key())
-        
+
     def keyReleaseEvent(self, event):
         if event.key() in controls and not event.isAutoRepeat():
             self.handle_inputs('released', event.key())
@@ -164,26 +152,23 @@ class CameraControlWindow(QMainWindow):
                 self.target += np.array([100.0,100.0])
             if self.keystate & keymap[Qt.Key.Key_Down]:
                 self.target += np.array([-100.0,-100.0])
+
+            # Motor drive is correct but left/right are swapped
+            # at the motor driver - swap them here
             if self.keystate & keymap[Qt.Key.Key_Left]:
-                self.target += np.array([-50.0,50.0])
-            if self.keystate & keymap[Qt.Key.Key_Right]:
                 self.target += np.array([50.0,-50.0])
+            if self.keystate & keymap[Qt.Key.Key_Right]:
+                self.target += np.array([-50.0,50.0])
 
             # braking is immediate
             if self.keystate & keymap[Qt.Key.Key_Space]:
-                self.speed = np.array([0.0,0.0])
+                self.target = self.speed = np.array([0.0,0.0])
 
             scale = np.max(np.abs(self.target))
-            if scale > 100:
-                self.target = self.target / 1.5
-    
-            if self.keystate % 2: 
-                self.target = self.target / 1.5
-
             # handle additive overrange
-            scale = np.max(np.abs(self.target))
             if scale > 100:
-                self.target = np.round(100.0 * self.target / scale)
+                self.target = self.target * 100.0 / scale
+
         else:
             self.target = self.speed
 
@@ -198,13 +183,14 @@ class CameraControlWindow(QMainWindow):
         # Calculate the change in speed allowed by the rate limit
         allowed_delta = np.clip(delta, -rate_limit * delta_time, rate_limit * delta_time)
 
-        # Update speed by applying the allowed change        
+        # Update speed by applying the allowed change
         self.speed += allowed_delta
+
         command = 'drive:' + ','.join(np.round(self.speed).astype(int).astype(str))
         if self.lastcommand != command:
             send_message(command)
-        self.lastcommand = command        
-        
+        self.lastcommand = command
+
 
     def init_ui(self):
         self.setWindowTitle("RTSP Stream Viewer")
@@ -229,7 +215,6 @@ class CameraControlWindow(QMainWindow):
 
 if __name__ == "__main__":
     rtsp_url = "rtsp://tank:8554/front"  # Replace with your RTSP stream URL
-
     app = QApplication(sys.argv)
     window = CameraControlWindow(rtsp_url)
     window.show()
