@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, QThread, pyqtSignal
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest
 import numpy as np
-import cv2
 import time
 import sys
 import zmq
+from VideoThread import VideoThread
 
 running = True
 throttle_prints = 25
@@ -35,42 +33,12 @@ keymap = {Qt.Key.Key_Space : 1,
           Qt.Key.Key_Up    : 8,
           Qt.Key.Key_Down  : 16 }
 
-class VideoThread(QThread):
-    update_frame_signal = pyqtSignal(QImage)
-
-    def __init__(self, srt_url):
-        super().__init__()
-        self.srt_url = srt_url
-        # OpenCV can handle SRT streams via FFMPEG if the stream URL is passed correctly
-        self.cap = cv2.VideoCapture(srt_url)
-        self.running = True
-
-    def run(self):
-        while self.running:
-            if self.cap.isOpened():
-                ret, frame = self.cap.read()
-                if ret:
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    h, w, ch = frame_rgb.shape
-                    bytes_per_line = ch * w
-                    qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                    self.update_frame_signal.emit(qt_image)
-                else:
-                    print("Failed to read frame")
-            else:
-                print("Failed to open camera")
-            QThread.msleep(66)  # approximately 15fps
-
-    def stop(self):
-        self.running = False
-        self.cap.release()
-        self.quit()
 
 class CameraControlWindow(QMainWindow):
-    def __init__(self, rtsp_url):
+    def __init__(self, url):
         super().__init__()
 
-        self.video_thread = VideoThread(rtsp_url)
+        self.video_thread = VideoThread(url)
         self.video_thread.update_frame_signal.connect(self.display_frame)
 
         self.init_ui()
@@ -181,8 +149,7 @@ class CameraControlWindow(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
-    rtsp_url = "srt://tank:8890?streamid=read:front"
     app = QApplication(sys.argv)
-    window = CameraControlWindow(rtsp_url)
+    window = CameraControlWindow("srt://tank:8890?streamid=read:front")
     window.show()
     sys.exit(app.exec_())
