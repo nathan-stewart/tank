@@ -38,11 +38,11 @@ keymap = {Qt.Key.Key_Space : 1,
 class VideoThread(QThread):
     update_frame_signal = pyqtSignal(QImage)
 
-    def __init__(self, rtsp_url):
+    def __init__(self, srt_url):
         super().__init__()
-        self.rtsp_url = rtsp_url
-        self.cap = cv2.VideoCapture(rtsp_url)
-        #self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.srt_url = srt_url
+        # OpenCV can handle SRT streams via FFMPEG if the stream URL is passed correctly
+        self.cap = cv2.VideoCapture(srt_url)
         self.running = True
 
     def run(self):
@@ -181,7 +181,7 @@ class CameraControlWindow(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
-    rtsp_url = "rtsp://tank:8554/front"
+    rtsp_url = "srt://tank:8890?streamid=read:front"
     app = QApplication(sys.argv)
     window = CameraControlWindow(rtsp_url)
     window.show()
