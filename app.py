@@ -11,11 +11,6 @@ import numpy as np
 #from PID_Py.PID import PID
 #from filterpy.kalman import KalmanFilter
 
-# Server (e.g., on the robot)
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.bind("tcp://*:5555")
-
 # start/stop camera with app
 subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
 def stop_mediamtx():
@@ -176,12 +171,34 @@ motor = MotorDriver(i2c_lock, i2c_bus)
 motor.set_tracks([0, 0])
 
 running = True
-while running:
-    message = socket.recv_string()
-    socket.send_string("Ack")
-    event,data = message.split(":")
-    if event == "drive":
-        motor_left, motor_right = [int(x) for x in data.split(",")]
-        motor.set_tracks([motor_left, motor_right])
 
+def set_motor_drive(msg):
+    global motor
+    motor_left, motor_right = [int(x) for x in data.split(",")]
+    motor.set_tracks([motor_left, motor_right])
+
+try:
+    # Server (e.g., on the robot)
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.setsockopt(zmq.RCVTIMEO, 1000)  # 1 seconds timeout
+    socket.bind("tcp://*:5555")
+
+    while running:
+        message = None
+        try:
+            message = socket.recv_string()
+        except zmq.Again:
+            continue
+        
+        if message:
+            socket.send_string("Ack")
+            event,data = message.split(":")
+            if event == "drive":
+                set_motor_drive(data)
+except:
+    print("Uncaught exception - bailing out")
+
+socket.close()
+context.term()
 motor.stop()
