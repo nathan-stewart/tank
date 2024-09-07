@@ -145,6 +145,6 @@ class CameraControlWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = CameraControlWindow("srt://tank:8890?streamid=read:front")
+    window = CameraControlWindow("udp://0.0.0.0:5000")
     window.show()
     sys.exit(app.exec_())
