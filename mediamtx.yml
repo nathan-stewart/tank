@@ -14,9 +14,9 @@ logDestinations: [stdout]
 logFile: mediamtx.log
 
 # Timeout of read operations.
-readTimeout: 10s
+readTimeout: 2s
 # Timeout of write operations.
-writeTimeout: 10s
+writeTimeout: 2s
 # Size of the queue of outgoing packets.
 # A higher value allows to increase throughput, a lower value allows to save RAM.
 writeQueueSize: 512
@@ -280,7 +280,7 @@ rtmpServerCert: server.crt
 # Global settings -> HLS server
 
 # Enable reading streams with the HLS protocol.
-hls: yes
+hls: no
 # Address of the HLS listener.
 hlsAddress: :8888
 # Enable TLS/HTTPS on the HLS server.
@@ -698,6 +698,8 @@ pathDefaults:
 paths:
   front:
     source: rpiCamera
+    runOnInit: ffmpeg -fflags nobuffer -flags low_delay -analyzeduration 0 -probesize 32 -max_delay 0 -i srt://localhost:8890 -tune zerolatency -vcodec libx264 -preset ultrafast -x264-params "slice-max-size=1500:keyint=30:min-keyint=30:scenecut=0"
+    runOnDemandStartTimeout: 10s
     rpiCameraWidth: 1920
     rpiCameraHeight: 1080
     rpiCameraMode: '2592:1944'
