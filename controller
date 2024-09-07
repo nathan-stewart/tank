@@ -10,8 +10,8 @@ import zmq
 from VideoThread import VideoThread
 
 running = True
-throttle_prints = 25
 rate_limit = 20.0
+steering_rate = 40.0
 
 # Client (e.g., on your laptop)
 context = zmq.Context()
@@ -77,34 +77,29 @@ class CameraControlWindow(QMainWindow):
             self.keystate &= (0xFF & ~keymap[key])
 
         # coasting is allowed but any keys pressed sets a new goal
-        if self.keystate:
-            self.target = np.array([0.0,0.0])
-            if self.keystate & keymap[Qt.Key.Key_Up]:
-                self.target += np.array([100.0,100.0])
-            if self.keystate & keymap[Qt.Key.Key_Down]:
-                self.target += np.array([-100.0,-100.0])
+        self.target = np.array([0.0,0.0])
+        if self.keystate & keymap[Qt.Key.Key_Up]:
+            self.target += np.array([100.0,100.0])
+        if self.keystate & keymap[Qt.Key.Key_Down]:
+            self.target += np.array([-100.0,-100.0])
 
-            # Motor drive is correct but left/right are swapped
-            # at the motor driver - swap them here
-            if self.keystate & keymap[Qt.Key.Key_Left]:
-                self.target += np.array([50.0,-50.0])
-            if self.keystate & keymap[Qt.Key.Key_Right]:
-                self.target += np.array([-50.0,50.0])
+        # Motor drive is correct but left/right are swapped
+        # at the motor driver - swap them here
+        if self.keystate & keymap[Qt.Key.Key_Left]:
+            self.target += np.array([50.0,-50.0])
+        if self.keystate & keymap[Qt.Key.Key_Right]:
+            self.target += np.array([-50.0,50.0])
 
-            # braking is immediate
-            if self.keystate & keymap[Qt.Key.Key_Space]:
-                self.target = self.speed = np.array([0.0,0.0])
+        # braking is immediate
+        if self.keystate & keymap[Qt.Key.Key_Space]:
+            self.target = self.speed = np.array([0.0,0.0])
 
-            scale = np.max(np.abs(self.target))
-            # handle additive overrange
-            if scale > 100:
-                self.target = self.target * 100.0 / scale
-
-        else:
-            self.target = self.speed
+        scale = np.max(np.abs(self.target))
+        # handle additive overrange
+        if scale > 100:
+            self.target = self.target * 100.0 / scale
 
     def control_update(self):
-        global throttle_prints
         now = time.perf_counter()
         delta_time = now - self.previous_time
         self.previous_time = now
