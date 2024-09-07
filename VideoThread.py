@@ -23,12 +23,15 @@ class VideoThread(QThread):
             self.running = False
 
     def run(self):
+        last_frame = None
         for frame in self.container.decode(self.stream):
             if not self.running:
                 break
+            if frame:
+                last_frame = frame
 
             # Convert the frame to RGB format
-            frame_rgb = frame.to_ndarray(format='rgb24')
+            frame_rgb = last_frame.to_ndarray(format='rgb24')
 
             h, w, ch = frame_rgb.shape
             bytes_per_line = ch * w
