@@ -8,6 +8,7 @@ import time
 import sys
 import zmq
 from VideoThread import VideoThread
+import socket as sock
 
 running = True
 rate_limit = 20.0
@@ -18,6 +19,14 @@ context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect("tcp://tank:5555")
 socket.setsockopt(zmq.RCVTIMEO, 1000)
+
+# Get our IP address
+def get_our_ip():
+    with sock.socket(sock.AF_INET, sock.SOCK_DGRAM) as s:
+        s.connect(('tank', 5000))
+        return s.getsockname()[0]
+
+our_ip = get_our_ip()
 
 def send_message(message):
     socket.send_string(message)
@@ -34,10 +43,12 @@ keymap = {Qt.Key.Key_Space : 1,
           Qt.Key.Key_Down  : 16 }
 
 
+
 class CameraControlWindow(QMainWindow):
     def __init__(self, url):
         super().__init__()
 
+        send_message(f'connect:{our_ip}')
         self.video_thread = VideoThread(url)
         self.video_thread.update_frame_signal.connect(self.display_frame)
 

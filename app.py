@@ -1,3 +1,4 @@
+
 #!/usr/bin//python3
 import zmq
 import threading
@@ -12,10 +13,18 @@ import numpy as np
 #from filterpy.kalman import KalmanFilter
 
 # start/stop camera with app
-subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
-def stop_mediamtx():
-    subprocess.call('/usr/bin/sudo /usr/bin/systemctl start camera'.split())
-atexit.register(stop_mediamtx)
+camera = None
+def stop_camera():
+    global camera 
+    if camera:
+        camera.terminate()
+        camera.wait()
+        camera = None
+
+def start_camera(host):
+    global camera
+    camera = subprocess.Popen(f'libcamera-vid -t 0 --width 1920 --height 1080 --framerate 30 --codec h264 --inline -o udp://{host}:5000', shell=True)
+atexit.register(stop_camera)
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
 GYRO_SENSITIVITY_250DPS = 250.0 / 32767  # Sensitivity factor for ±250dps
@@ -196,6 +205,8 @@ try:
             event,data = message.split(":")
             if event == "drive":
                 set_motor_drive(data)
+            elif event == "connect:":
+                start_camera(host=data)
 except:
     print("Uncaught exception - bailing out")
 
