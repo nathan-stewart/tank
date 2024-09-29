@@ -23,6 +23,7 @@ def stop_camera():
 
 def start_camera(host):
     global camera
+    print(f'Connect message from {host} - starting camera')
     camera = subprocess.Popen(f'libcamera-vid -t 0 --width 1920 --height 1080 --framerate 30 --codec h264 --inline -o udp://{host}:5000', shell=True)
 atexit.register(stop_camera)
 
