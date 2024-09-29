@@ -24,7 +24,7 @@ def stop_camera():
 def start_camera(host):
     global camera
     print(f'Connect message from {host} - starting camera')
-    camera = subprocess.Popen(f'libcamera-vid -t 0 --width 1920 --height 1080 --framerate 30 --codec h264 --inline -o udp://{host}:5000', shell=True)
+    camera = subprocess.Popen(f'libcamera-vid -t 0 --width 1920 --height 1080 --framerate 10 --codec h264 --inline -o udp://{host}:5000', shell=True)
 atexit.register(stop_camera)
 
 ACCEL_SENSITIVITY_16G = 16.0 / 32767  # Sensitivity factor for ±16g
@@ -206,8 +206,11 @@ try:
             event,data = message.split(":")
             if event == "drive":
                 set_motor_drive(data)
-            elif event == "connect:":
+            elif event == "connect":
                 start_camera(host=data)
+            elif event == "disconnect":
+                stop_camera()
+                running = False
 except:
     print("Uncaught exception - bailing out")
 

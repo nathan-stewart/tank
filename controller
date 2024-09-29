@@ -47,8 +47,9 @@ keymap = {Qt.Key.Key_Space : 1,
 class CameraControlWindow(QMainWindow):
     def __init__(self, url):
         super().__init__()
-
+        print(f'Attempting to connect to tank from {our_ip}')
         send_message(f'connect:{our_ip}')
+        print('Connected to tank')
         self.video_thread = VideoThread(url)
         self.video_thread.update_frame_signal.connect(self.display_frame)
 
@@ -151,6 +152,7 @@ class CameraControlWindow(QMainWindow):
         self.image_label.setPixmap(QPixmap.fromImage(qt_image))
 
     def closeEvent(self, event):
+        send_message(f'disconnect:{our_ip}')
         self.video_thread.stop()
         event.accept()
 
