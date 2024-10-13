@@ -51,6 +51,11 @@ class MotorDriver:
             state = self.bus.read_i2c_block_data(MC_I2C_ADDR, MOTOR_FIXED_SPEED_ADDR, 4)
             self.bus.write_i2c_block_data(MC_I2C_ADDR, MOTOR_FIXED_SPEED_ADDR, state[0],state[1], turret[0], turret[1])
 
+    def print(self):
+        with self.lock:
+            print(self.bus.read_i2c_block_data(MC_I2C_ADDR,ADC_BAR_ADDR, 1))
+            print(self.bus.read_i2c_block_data(MC_I2C_ADDR,MOTOR_ENCODER_TOTAT_ADDR, 4))
+
     def __del__(self):
         with self.lock:
             self.bus.close()

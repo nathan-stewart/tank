@@ -12,6 +12,9 @@ import numpy as np
 #from PID_Py.PID import PID
 #from filterpy.kalman import KalmanFilter
 
+threads = []
+running  = True
+
 # start/stop camera with app
 camera = None
 def stop_camera():
@@ -62,11 +65,8 @@ class IMU():
         global imu_lock
         global i2c_lock
         global i2c_bus
-
+        global running 
         self.polling = 50
-        self.running = False
-        self.threads = []
-
         self.accel = [0] * 3
         self.gyro = [0] * 3
         self.mag = [0] * 3
@@ -103,18 +103,8 @@ class IMU():
                 self.mag = np.array(rawmag) / np.linalg.norm(rawmag) # Normalize magnetometer data
                 minval = min(minval, np.linalg.norm(self.accel))
                 maxval = max(maxval, np.linalg.norm(self.accel))
-                if maxval > 4.0 or minval < 0.1:
-                    self.print_data()
 
-
-    def stop(self):
-        if self.running:
-            self.running = False
-            while self.threads:
-
-                self.threads.pop().join()
-
-    def print_data(self):
+    def print(self):
         print(' '.join(['{: .4f}'.format(value) for value in self.accel])  \
             +  ':(%.4f)' % np.linalg.norm(self.accel) \
             + ' '.join(['{: .4f}'.format(value) for value in self.gyro]) + '   ' \
@@ -146,10 +136,9 @@ class IMU():
             time.sleep(1.0/self.polling)
 
     def run(self):
-        if not self.running:
-            self.running = True
-            self.threads.append(threading.Thread(target=self._poll_data))
-            self.threads[-1].start()
+        global threads
+        threads.append(threading.Thread(target=self._poll_data))
+        threads[-1].start()
 
 #imu = IMU()
 #imu.run()
@@ -182,10 +171,22 @@ motor.set_tracks([0, 0])
 
 running = True
 
+
 def set_motor_drive(msg):
     global motor
     motor_left, motor_right = [int(x) for x in data.split(",")]
     motor.set_tracks([motor_left, motor_right])
+
+def dump_sensors():
+    global imu
+    global motor
+    global running
+    while running:
+        motor.print()
+        imu.print()
+        time.sleep(0.5)
+
+threads.append(threading.Thread(target=dump_sensors))
 
 try:
     # Server (e.g., on the robot)
@@ -214,6 +215,10 @@ try:
 except:
     print("Uncaught exception - bailing out")
 
+running = False
 socket.close()
 context.term()
 motor.stop()
+
+while threads:
+    threads.pop().join()
