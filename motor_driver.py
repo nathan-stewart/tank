@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import struct
 from collections import deque
 import smbus2 as smbus
 from time import sleep
@@ -59,8 +60,14 @@ class MotorDriver:
             lsb,msb = self.bus.read_i2c_block_data(MC_I2C_ADDR,ADC_BAR_ADDR, 2)
             return ((msb << 8) | lsb) / 1e3
 
+    def read_encoders(self):
+        with self.lock:
+            encoders = struct.unpack('4L', bytes(self.bus.read_i2c_block_data(MC_I2C_ADDR, MOTOR_ENCODER_TOTAT_ADDR, 16)))
+            print(encoders)
+
     def print(self):
         print("Battery: ", self.read_battery())
+        print('Encoders: f', self.read_encoders())
 
 
     def __del__(self):
