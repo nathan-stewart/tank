@@ -8,8 +8,7 @@ from motor_driver import MotorDriver
 #import qwiic_icm20948
 import smbus2 as smbus
 import numpy as np
-#from PID_Py.PID import PID
-#from filterpy.kalman import KalmanFilter
+from ahrs import AHRS
 
 threads = []
 running  = True
