@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+import sys
+import rospy
+from chassis_control.msg import SetVelocity
+
+rospy.init_node('car_control_demo', log_level=rospy.DEBUG)
+
+set_velocity = rospy.Publisher('/chassis_control/set_velocity', SetVelocity, queue_size=1)
+
+def main():
+    rospy.sleep(1)
+    set_velocity.publish(150, 90, 0) # 150mm/s, 90 degree/s
+    rospy.sleep(2)
+    set_velocity.publish(0, 0, 0) # stop
+    rospy.sleep(1)
+    set_velocity.publish(150, 270, 0)  # 150mm/s, -90 degree/s
+    rospy.sleep(2)
+    set_velocity.publish(0, 0, 0)  # stop
+    rospy.sleep(1)
+    set_velocity.publish(0, 90, 0.1) # 90 degree/s, 0.1m/s
+    rospy.sleep(2)
+    set_velocity.publish(0, 0, 0) # stop
+    rospy.sleep(1)
+    set_velocity.publish(150, 90, 0) # 150mm/s, 90 degree/s
+    rospy.sleep(2)
+    set_velocity.publish(0, 0, 0) # stop
+    rospy.sleep(1)
+        
+          
+if __name__ == '__main__':
+    main()
+    set_velocity.publish(0, 0, 0)
+
