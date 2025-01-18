@@ -1,6 +1,5 @@
 import pygame
 import logging
-import struct
 
 class GamepadController:
     def __init__(self):
