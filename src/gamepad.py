@@ -4,19 +4,17 @@ import json
 
 class GamepadController:
     def __init__(self):
-        self.pygame = pygame
-        self.pub = None
+        pygame.joystick.init()
         self.joystick = None
-        self.pygame.joystick.init()
-        if self.pygame.joystick.get_count() > 0:
-            self.joystick = self.pygame.joystick.Joystick(0)
+        if pygame.joystick.get_count() > 0:
+            self.joystick = pygame.joystick.Joystick(0)
             self.joystick.init()
             logging.log(logging.INFO, "Gamepad initialized.")
         else:
             logging.log(logging.FATAL, "No Gamepad detected.")
 
     def get_state(self):
-        self.pygame.event.pump()
+        pygame.event.pump()
         axes = [self.joystick.get_axis(i) for i in range(self.joystick.get_numaxes())]
         hat  = [self.joystick.get_hat(i) for i in range(self.joystick.get_numhats())]
         buttons = 0;
